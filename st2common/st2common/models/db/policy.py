@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common import log as logging
 from st2common.constants import pack as pack_constants
@@ -116,20 +117,24 @@ class PolicyTypeDB(stormbase.StormBaseDB, stormbase.UIDFieldMixin):
     RESOURCE_TYPE = ResourceType.POLICY_TYPE
     UID_FIELDS = ['resource_type', 'name']
 
-    ref = me.StringField(required=True)
-    resource_type = me.StringField(
+    ref = me.CharField(required=True)
+    resource_type = me.CharField(
         required=True,
-        unique_with='name',
-        help_text='The type of resource that this policy type can be applied to.')
+        verbose_name='The type of resource that this policy type can be applied to.')
     enabled = me.BooleanField(
         required=True,
         default=True,
-        help_text='A flag indicating whether the runner for this type is enabled.')
-    module = me.StringField(
+        verbose_name='A flag indicating whether the runner for this type is enabled.')
+    module = me.CharField(
         required=True,
-        help_text='The python module that implements the policy for this type.')
+        verbose_name='The python module that implements the policy for this type.')
     parameters = me.DictField(
-        help_text='The specification for parameters for the policy type.')
+        verbose_name='The specification for parameters for the policy type.')
+    
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('resource_type', pymongo.OFF), ('name', pymongo.OFF)], unique=True)
+        ]
 
     def __init__(self, *args, **kwargs):
         super(PolicyTypeDB, self).__init__(*args, **kwargs)
@@ -160,34 +165,33 @@ class PolicyDB(stormbase.StormFoundationDB, stormbase.ContentPackResourceMixin,
     RESOURCE_TYPE = ResourceType.POLICY
     UID_FIELDS = ['pack', 'name']
 
-    name = me.StringField(required=True)
-    ref = me.StringField(required=True)
-    pack = me.StringField(
+    name = me.CharField(required=True)
+    ref = me.CharField(required=True)
+    pack = me.CharField(
         required=False,
         default=pack_constants.DEFAULT_PACK_NAME,
-        unique_with='name',
-        help_text='Name of the content pack.')
-    description = me.StringField()
+        verbose_name='Name of the content pack.')
+    description = me.CharField()
     enabled = me.BooleanField(
         required=True,
         default=True,
-        help_text='A flag indicating whether this policy is enabled in the system.')
-    resource_ref = me.StringField(
+        verbose_name='A flag indicating whether this policy is enabled in the system.')
+    resource_ref = me.CharField(
         required=True,
-        help_text='The resource that this policy is applied to.')
-    policy_type = me.StringField(
+        verbose_name='The resource that this policy is applied to.')
+    policy_type = me.CharField(
         required=True,
-        unique_with='resource_ref',
-        help_text='The type of policy.')
+        verbose_name='The type of policy.')
     parameters = me.DictField(
-        help_text='The specification of input parameters for the policy.')
+        verbose_name='The specification of input parameters for the policy.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['name']},
-            {'fields': ['resource_ref']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('pack', pymongo.OFF), ('name', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('policy_type', pymongo.OFF), ('resource_ref', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('name', pymongo.OFF)]),
+            pymongo.IndexModel([('resource_ref', pymongo.OFF)])
         ]
-    }
 
     def __init__(self, *args, **kwargs):
         super(PolicyDB, self).__init__(*args, **kwargs)

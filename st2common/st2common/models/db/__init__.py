@@ -16,23 +16,23 @@ from __future__ import absolute_import
 
 import copy
 import importlib
-import traceback
 import ssl as ssl_lib
+import traceback
 
+import pymodm
 import six
-import mongoengine
 from mongoengine.queryset import visitor
+import mongoengine
 from pymongo import uri_parser
-from pymongo.errors import OperationFailure
 from pymongo.errors import ConnectionFailure
+from pymongo.errors import OperationFailure
 
 from st2common import log as logging
-from st2common.util import isotime
-from st2common.util.misc import get_field_name_from_mongoengine_error
+from st2common.exceptions import db as db_exc
 from st2common.models.db import stormbase
 from st2common.models.utils.profiling import log_query_and_profile_data_for_queryset
-from st2common.exceptions import db as db_exc
-
+from st2common.util import isotime
+from st2common.util.misc import get_field_name_from_mongoengine_error
 
 LOG = logging.getLogger(__name__)
 
@@ -91,9 +91,9 @@ def get_model_classes():
 
 
 def _db_connect(db_name, db_host, db_port, username=None, password=None,
-             ssl=False, ssl_keyfile=None, ssl_certfile=None, ssl_cert_reqs=None,
-             ssl_ca_certs=None, authentication_mechanism=None, ssl_match_hostname=True):
-
+                ssl=False, ssl_keyfile=None, ssl_certfile=None, ssl_cert_reqs=None,
+                ssl_ca_certs=None, authentication_mechanism=None, ssl_match_hostname=True):
+    # TODO: fix url issue
     if '://' in db_host:
         # Hostname is provided as a URI string. Make sure we don't log the password in case one is
         # included as part of the URI string.
@@ -121,11 +121,12 @@ def _db_connect(db_name, db_host, db_port, username=None, password=None,
                                  ssl_cert_reqs=ssl_cert_reqs, ssl_ca_certs=ssl_ca_certs,
                                  authentication_mechanism=authentication_mechanism,
                                  ssl_match_hostname=ssl_match_hostname)
-
-    connection = mongoengine.connection.connect(db_name, host=db_host,
-                                                port=db_port, tz_aware=True,
-                                                username=username, password=password,
-                                                **ssl_kwargs)
+    # TODO: fix url issue
+    h = 'mongodb://mongo:27017/st2'
+    connection = pymodm.connection.connect(db_name, host=h,
+                                           port=db_port, tz_aware=True,
+                                           username=username, password=password,
+                                           **ssl_kwargs)
 
     # NOTE: Since pymongo 3.0, connect() method is lazy and not blocking (always returns success)
     # so we need to issue a command / query to check if connection has been
@@ -133,7 +134,9 @@ def _db_connect(db_name, db_host, db_port, username=None, password=None,
     # See http://api.mongodb.com/python/current/api/pymongo/mongo_client.html for details
     try:
         # The ismaster command is cheap and does not require auth
-        connection.admin.command('ismaster')
+        # TODO: fix admin command
+        pass
+        # connection.admin.command('ismaster')
     except ConnectionFailure as e:
         LOG.error('Failed to connect to database "%s" @ "%s" as user "%s": %s' %
                   (db_name, host_string, str(username_string), six.text_type(e)))
@@ -149,7 +152,6 @@ def db_setup(db_name, db_host, db_port, username=None, password=None, ensure_ind
              ssl=False, ssl_keyfile=None, ssl_certfile=None,
              ssl_cert_reqs=None, ssl_ca_certs=None,
              authentication_mechanism=None, ssl_match_hostname=True):
-
     connection = _db_connect(db_name, db_host, db_port, username=username,
                              password=password, ssl=ssl, ssl_keyfile=ssl_keyfile,
                              ssl_certfile=ssl_certfile,
@@ -271,14 +273,13 @@ def drop_obsolete_types_indexes(model_class):
 
 
 def db_teardown():
-    mongoengine.connection.disconnect()
+    del pymodm.connection
 
 
 def db_cleanup(db_name, db_host, db_port, username=None, password=None,
                ssl=False, ssl_keyfile=None, ssl_certfile=None,
                ssl_cert_reqs=None, ssl_ca_certs=None,
                authentication_mechanism=None, ssl_match_hostname=True):
-
     connection = _db_connect(db_name, db_host, db_port, username=username,
                              password=password, ssl=ssl, ssl_keyfile=ssl_keyfile,
                              ssl_certfile=ssl_certfile,
@@ -499,7 +500,7 @@ class MongoDBAccess(object):
                 _args += (visitor.QCombination(arg.operation, children),)
             else:
                 raise TypeError("Unknown argument type '%s' of argument '%s'"
-                    % (type(arg), repr(arg)))
+                                % (type(arg), repr(arg)))
 
         return _args
 

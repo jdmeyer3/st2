@@ -13,16 +13,17 @@
 # limitations under the License.
 
 from __future__ import absolute_import
+
 import hashlib
 
-import mongoengine as me
+import pymodm as me
+import pymongo
 
-from st2common.models.db import stormbase
-from st2common.fields import ComplexDateTimeField
-from st2common.util import date as date_utils
 from st2common.constants.types import ResourceType
-
+from st2common.fields import ComplexDateTimeField
 from st2common.models.db import MongoDBAccess
+from st2common.models.db import stormbase
+from st2common.util import date as date_utils
 
 __all__ = [
     'TraceDB',
@@ -30,15 +31,15 @@ __all__ = [
 ]
 
 
-class TraceComponentDB(me.EmbeddedDocument):
+class TraceComponentDB(me.EmbeddedMongoModel):
     """
     """
-    object_id = me.StringField()
-    ref = me.StringField(default='')
+    object_id = me.CharField()
+    ref = me.CharField(default='')
     updated_at = ComplexDateTimeField(
         default=date_utils.get_datetime_utc_now,
-        help_text='The timestamp when the TraceComponent was included.')
-    caused_by = me.DictField(help_text='Causal component.')
+        verbose_name='The timestamp when the TraceComponent was included.')
+    caused_by = me.DictField(verbose_name='Causal component.')
 
     def __str__(self):
         return 'TraceComponentDB@(object_id:{}, updated_at:{})'.format(
@@ -65,30 +66,29 @@ class TraceDB(stormbase.StormFoundationDB, stormbase.UIDFieldMixin):
 
     RESOURCE_TYPE = ResourceType.TRACE
 
-    trace_tag = me.StringField(required=True,
-                               help_text='A user specified reference to the trace.')
+    trace_tag = me.CharField(required=True,
+                             verbose_name='A user specified reference to the trace.')
     trigger_instances = me.ListField(field=me.EmbeddedDocumentField(TraceComponentDB),
                                      required=False,
-                                     help_text='Associated TriggerInstances.')
+                                     verbose_name='Associated TriggerInstances.')
     rules = me.ListField(field=me.EmbeddedDocumentField(TraceComponentDB),
                          required=False,
-                         help_text='Associated Rules.')
+                         verbose_name='Associated Rules.')
     action_executions = me.ListField(field=me.EmbeddedDocumentField(TraceComponentDB),
                                      required=False,
-                                     help_text='Associated ActionExecutions.')
+                                     verbose_name='Associated ActionExecutions.')
     start_timestamp = ComplexDateTimeField(default=date_utils.get_datetime_utc_now,
-                                           help_text='The timestamp when the Trace was created.')
+                                           verbose_name='The timestamp when the Trace was created.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['trace_tag']},
-            {'fields': ['start_timestamp']},
-            {'fields': ['action_executions.object_id']},
-            {'fields': ['trigger_instances.object_id']},
-            {'fields': ['rules.object_id']},
-            {'fields': ['-start_timestamp', 'trace_tag']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('trace_tag', pymongo.OFF)]),
+            pymongo.IndexModel([('start_timestamp', pymongo.OFF)]),
+            pymongo.IndexModel([('action_executions.object_id', pymongo.OFF)]),
+            pymongo.IndexModel([('trigger_instances.object_id', pymongo.OFF)]),
+            pymongo.IndexModel([('rules.object_id', pymongo.OFF)]),
+            pymongo.IndexModel([('-start_timestamp', pymongo.OFF), ('trace_tag', pymongo.OFF)]),
         ]
-    }
 
     def __init__(self, *args, **values):
         super(TraceDB, self).__init__(*args, **values)

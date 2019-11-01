@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common import log as logging
 from st2common.models.db import MongoDBAccess
@@ -47,41 +48,41 @@ class ActionAliasDB(stormbase.StormFoundationDB, stormbase.ContentPackResourceMi
     RESOURCE_TYPE = ResourceType.ACTION_ALIAS
     UID_FIELDS = ['pack', 'name']
 
-    name = me.StringField(required=True)
-    ref = me.StringField(required=True)
-    description = me.StringField()
-    pack = me.StringField(
+    name = me.CharField(required=True)
+    ref = me.CharField(required=True)
+    description = me.CharField()
+    pack = me.CharField(
         required=True,
-        help_text='Name of the content pack.',
-        unique_with='name')
+        verbose_name='Name of the content pack.')
     enabled = me.BooleanField(
         required=True, default=True,
-        help_text='A flag indicating whether the action alias is enabled.')
-    action_ref = me.StringField(
+        verbose_name='A flag indicating whether the action alias is enabled.')
+    action_ref = me.CharField(
         required=True,
-        help_text='Reference of the Action map this alias.')
+        verbose_name='Reference of the Action map this alias.')
     formats = me.ListField(
-        help_text='Possible parameter formats that an alias supports.')
+        verbose_name='Possible parameter formats that an alias supports.')
     ack = me.DictField(
-        help_text='Parameters pertaining to the acknowledgement message.'
+        verbose_name='Parameters pertaining to the acknowledgement message.'
     )
     result = me.DictField(
-        help_text='Parameters pertaining to the execution result message.'
+        verbose_name='Parameters pertaining to the execution result message.'
     )
     extra = me.DictField(
-        help_text='Additional parameters (usually adapter-specific) not covered in the schema.'
+        verbose_name='Additional parameters (usually adapter-specific) not covered in the schema.'
     )
     immutable_parameters = me.DictField(
-        help_text='Parameters to be passed to the action on every execution.')
+        verbose_name='Parameters to be passed to the action on every execution.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['name']},
-            {'fields': ['enabled']},
-            {'fields': ['formats']},
-        ] + (stormbase.ContentPackResourceMixin().get_indexes() +
-             stormbase.UIDFieldMixin.get_indexes())
-    }
+    class Meta:
+        collection_name = "action_alias_d_b"
+        indexes = [
+                      pymongo.IndexModel([('name', pymongo.TEXT)]),
+                      pymongo.IndexModel([('enabled', pymongo.TEXT)]),
+                      pymongo.IndexModel([('formats', pymongo.TEXT)]),
+                      pymongo.IndexModel([('pack', pymongo.TEXT)], unique=True)
+                  ] + (stormbase.ContentPackResourceMixin().get_indexes() +
+                       stormbase.UIDFieldMixin.get_indexes())
 
     def __init__(self, *args, **values):
         super(ActionAliasDB, self).__init__(*args, **values)

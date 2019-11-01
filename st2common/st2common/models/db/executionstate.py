@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common import log as logging
 from st2common.models.db import MongoDBAccess
@@ -35,18 +36,19 @@ class ActionExecutionStateDB(stormbase.StormFoundationDB):
     """
     execution_id = me.ObjectIdField(
         required=True,
-        unique=True,
-        help_text='liveaction ID.')
-    query_module = me.StringField(
+        verbose_name='liveaction ID.')
+    query_module = me.CharField(
         required=True,
-        help_text='Reference to the runner model.')
+        verbose_name='Reference to the runner model.')
     query_context = me.DictField(
         required=True,
-        help_text='Context about the action execution that is needed for results query.')
+        verbose_name='Context about the action execution that is needed for results query.')
 
-    meta = {
-        'indexes': ['query_module']
-    }
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('execution_id', pymongo.TEXT)], unique=True),
+            pymongo.IndexModel([('query_module', pymongo.OFF)])
+        ]
 
 
 # specialized access objects

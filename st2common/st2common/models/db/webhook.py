@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common.models.db import stormbase
 from st2common.constants.types import ResourceType
@@ -30,7 +31,7 @@ class WebhookDB(stormbase.StormFoundationDB, stormbase.UIDFieldMixin):
     RESOURCE_TYPE = ResourceType.WEBHOOK
     UID_FIELDS = ['name']
 
-    name = me.StringField(required=True)
+    name = me.CharField(required=True)
 
     def __init__(self, *args, **values):
         super(WebhookDB, self).__init__(*args, **values)

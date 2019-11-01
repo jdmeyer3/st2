@@ -14,7 +14,8 @@
 
 from __future__ import absolute_import
 
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common import log as logging
 from st2common.models.db import stormbase
@@ -43,33 +44,29 @@ class ActionExecutionSchedulingQueueItemDB(stormbase.StormFoundationDB,
     RESOURCE_TYPE = ResourceType.EXECUTION_REQUEST
     UID_FIELDS = ['id']
 
-    liveaction_id = me.StringField(required=True,
-        help_text='Foreign key to the LiveActionDB which is to be scheduled')
-    action_execution_id = me.StringField(
-        help_text='Foreign key to the ActionExecutionDB which is to be scheduled')
+    liveaction_id = me.CharField(required=True,
+        verbose_name='Foreign key to the LiveActionDB which is to be scheduled')
+    action_execution_id = me.CharField(
+        verbose_name='Foreign key to the ActionExecutionDB which is to be scheduled')
     original_start_timestamp = ComplexDateTimeField(
         default=date_utils.get_datetime_utc_now,
-        help_text='The timestamp when the liveaction was created and originally be scheduled to '
+        verbose_name='The timestamp when the liveaction was created and originally be scheduled to '
                   'run.')
     scheduled_start_timestamp = ComplexDateTimeField(
         default=date_utils.get_datetime_utc_now,
-        help_text='The timestamp when liveaction is scheduled to run.')
-    delay = me.IntField()
+        verbose_name='The timestamp when liveaction is scheduled to run.')
+    delay = me.IntegerField()
     handling = me.BooleanField(default=False,
-        help_text='Flag indicating if this item is currently being handled / '
+        verbose_name='Flag indicating if this item is currently being handled / '
                    'processed by a scheduler service')
 
-    meta = {
-        'indexes': [
-            # NOTE: We limit index names to 65 characters total for compatibility with AWS
-            # DocumentDB.
-            # See https://github.com/StackStorm/st2/pull/4690 for details.
-            {'fields': ['action_execution_id'], 'name': 'ac_exc_id'},
-            {'fields': ['liveaction_id'], 'name': 'lv_ac_id'},
-            {'fields': ['original_start_timestamp'], 'name': 'orig_s_ts'},
-            {'fields': ['scheduled_start_timestamp'], 'name': 'schd_s_ts'},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('action_execution_id', pymongo.OFF)], name='ac_exc_id'),
+            pymongo.IndexModel([('liveaction_id', pymongo.OFF)], name='lv_ac_id'),
+            pymongo.IndexModel([('original_start_timestamp', pymongo.OFF)], name='orig_s_ts'),
+            pymongo.IndexModel([('scheduled_start_timestamp', pymongo.OFF)], name='schd_s_ts'),
         ]
-    }
 
 
 MODELS = [ActionExecutionSchedulingQueueItemDB]

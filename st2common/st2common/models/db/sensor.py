@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common.models.db import MongoDBAccess
 from st2common.models.db import stormbase
@@ -41,24 +42,24 @@ class SensorTypeDB(stormbase.StormBaseDB, stormbase.ContentPackResourceMixin,
     RESOURCE_TYPE = ResourceType.SENSOR_TYPE
     UID_FIELDS = ['pack', 'name']
 
-    name = me.StringField(required=True)
-    ref = me.StringField(required=True)
-    pack = me.StringField(required=True, unique_with='name')
-    artifact_uri = me.StringField()
-    entry_point = me.StringField()
-    trigger_types = me.ListField(field=me.StringField())
-    poll_interval = me.IntField()
+    name = me.CharField(required=True)
+    ref = me.CharField(required=True)
+    pack = me.CharField(required=True)
+    artifact_uri = me.CharField()
+    entry_point = me.CharField()
+    trigger_types = me.ListField(field=me.CharField())
+    poll_interval = me.IntegerField()
     enabled = me.BooleanField(default=True,
-                              help_text=u'Flag indicating whether the sensor is enabled.')
+                              verbose_name=u'Flag indicating whether the sensor is enabled.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['name']},
-            {'fields': ['enabled']},
-            {'fields': ['trigger_types']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('pack', pymongo.OFF), ('name', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('name', pymongo.OFF)]),
+            pymongo.IndexModel([('enabled', pymongo.OFF)]),
+            pymongo.IndexModel([('trigger_types', pymongo.OFF)]),
         ] + (stormbase.ContentPackResourceMixin.get_indexes() +
              stormbase.UIDFieldMixin.get_indexes())
-    }
 
     def __init__(self, *args, **values):
         super(SensorTypeDB, self).__init__(*args, **values)

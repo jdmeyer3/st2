@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common.fields import ComplexDateTimeField
 from st2common.models.db import stormbase
@@ -36,14 +37,10 @@ class MarkerDB(stormbase.StormFoundationDB):
     :param updated_at: Timestamp when marker was updated.
     :type updated_at: ``datetime.datetime``
     """
-    marker = me.StringField(required=True)
+    marker = me.CharField(required=True)
     updated_at = ComplexDateTimeField(
         default=date_utils.get_datetime_utc_now,
-        help_text='The timestamp when the liveaction was created.')
-
-    meta = {
-        'abstract': True
-    }
+        verbose_name='The timestamp when the liveaction was created.')
 
 
 class DumperMarkerDB(MarkerDB):

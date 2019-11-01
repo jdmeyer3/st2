@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common import log as logging
 from st2common.models.db import MongoDBAccess
@@ -49,27 +50,26 @@ class RunnerTypeDB(stormbase.StormBaseDB, stormbase.UIDFieldMixin):
 
     enabled = me.BooleanField(
         required=True, default=True,
-        help_text='A flag indicating whether the runner for this type is enabled.')
-    runner_package = me.StringField(
+        verbose_name='A flag indicating whether the runner for this type is enabled.')
+    runner_package = me.CharField(
         required=False,
-        help_text=('The python package that implements the action runner for this type. If'
+        verbose_name=('The python package that implements the action runner for this type. If'
                    'not provided it assumes package name equals module name.'))
-    runner_module = me.StringField(
+    runner_module = me.CharField(
         required=True,
-        help_text='The python module that implements the action runner for this type.')
+        verbose_name='The python module that implements the action runner for this type.')
     runner_parameters = me.DictField(
-        help_text='The specification for parameters for the action runner.')
-    output_key = me.StringField(
-        help_text='Default key to expect results to be published to.')
+        verbose_name='The specification for parameters for the action runner.')
+    output_key = me.CharField(
+        verbose_name='Default key to expect results to be published to.')
     output_schema = me.DictField(
-        help_text='The schema for runner output.')
-    query_module = me.StringField(
+        verbose_name='The schema for runner output.')
+    query_module = me.CharField(
         required=False,
-        help_text='The python module that implements the query module for this runner.')
+        verbose_name='The python module that implements the query module for this runner.')
 
-    meta = {
-        'indexes': stormbase.UIDFieldMixin.get_indexes()
-    }
+    class Meta:
+        indexes = [] + stormbase.UIDFieldMixin.get_indexes()
 
     def __init__(self, *args, **values):
         super(RunnerTypeDB, self).__init__(*args, **values)

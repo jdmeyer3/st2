@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
+import mongoengine
 
 from st2common.constants.keyvalue import FULL_SYSTEM_SCOPE
 from st2common.constants.types import ResourceType
@@ -35,21 +37,19 @@ class KeyValuePairDB(stormbase.StormBaseDB, stormbase.UIDFieldMixin):
     RESOURCE_TYPE = ResourceType.KEY_VALUE_PAIR
     UID_FIELDS = ['scope', 'name']
 
-    scope = me.StringField(default=FULL_SYSTEM_SCOPE, unique_with='name')
-    name = me.StringField(required=True)
-    value = me.StringField()
+    scope = me.CharField(default=FULL_SYSTEM_SCOPE)
+    name = me.CharField(required=True)
+    value = me.CharField()
     secret = me.BooleanField(default=False)
     expire_timestamp = me.DateTimeField()
 
-    meta = {
-        'indexes': [
-            {'fields': ['name']},
-            {
-                'fields': ['expire_timestamp'],
-                'expireAfterSeconds': 0
-            }
-        ] + stormbase.UIDFieldMixin.get_indexes()
-    }
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('scope', pymongo.OFF), ('name', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('scope', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('name', pymongo.OFF)]),
+            pymongo.IndexModel([('expire_timestamp', pymongo.OFF)], expireAfterSeconds=0)
+        ]
 
     def __init__(self, *args, **values):
         super(KeyValuePairDB, self).__init__(*args, **values)

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common.models.db import MongoDBAccess
 from st2common.models.db import stormbase
@@ -42,17 +43,16 @@ class RoleDB(stormbase.StormFoundationDB):
         permission_grants: A list of IDs to the permission grant which apply to this
         role.
     """
-    name = me.StringField(required=True, unique=True)
-    description = me.StringField()
+    name = me.CharField(required=True)
+    description = me.CharField()
     system = me.BooleanField(default=False)
-    permission_grants = me.ListField(field=me.StringField())
+    permission_grants = me.ListField(field=me.CharField())
 
-    meta = {
-        'indexes': [
-            {'fields': ['name']},
-            {'fields': ['system']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('name', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('system', pymongo.OFF)])
         ]
-    }
 
 
 class UserRoleAssignmentDB(stormbase.StormFoundationDB):
@@ -66,25 +66,25 @@ class UserRoleAssignmentDB(stormbase.StormFoundationDB):
                 and "API" for API assignments.
         description: Optional assigment description.
     """
-    user = me.StringField(required=True)
-    role = me.StringField(required=True, unique_with=['user', 'source'])
-    source = me.StringField(required=True, unique_with=['user', 'role'])
-    description = me.StringField()
+    user = me.CharField(required=True)
+    role = me.CharField(required=True)
+    source = me.CharField(required=True)
+    description = me.CharField()
     # True if this is assigned created on authentication based on the remote groups provided by
     # the auth backends.
     # Remote assignments are special in a way that they are not manipulated with when running
     # st2-apply-rbac-auth-definitions tool.
     is_remote = me.BooleanField(default=False)
 
-    meta = {
-        'indexes': [
-            {'fields': ['user']},
-            {'fields': ['role']},
-            {'fields': ['source']},
-            {'fields': ['is_remote']},
-            {'fields': ['user', 'role']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('user', pymongo.OFF)]),
+            pymongo.IndexModel([('role', pymongo.OFF)]),
+            pymongo.IndexModel([('source', pymongo.OFF)]),
+            pymongo.IndexModel([('is_remote', pymongo.OFF)]),
+            pymongo.IndexModel([('user', pymongo.OFF), ('role', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('user', pymongo.OFF), ('source', pymongo.OFF)], unique=True),
         ]
-    }
 
 
 class PermissionGrantDB(stormbase.StormFoundationDB):
@@ -97,15 +97,14 @@ class PermissionGrantDB(stormbase.StormFoundationDB):
         convenience and to allow for more efficient queries.
         permission_types: A list of permission type granted to that resources.
     """
-    resource_uid = me.StringField(required=False)
-    resource_type = me.StringField(required=False)
-    permission_types = me.ListField(field=me.StringField())
+    resource_uid = me.CharField(required=False)
+    resource_type = me.CharField(required=False)
+    permission_types = me.ListField(field=me.CharField())
 
-    meta = {
-        'indexes': [
-            {'fields': ['resource_uid']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('resource_uid', pymongo.OFF)])
         ]
-    }
 
 
 class GroupToRoleMappingDB(stormbase.StormFoundationDB):
@@ -119,13 +118,17 @@ class GroupToRoleMappingDB(stormbase.StormFoundationDB):
                 and "API" for API assignments.
         description: Optional description for this mapping.
     """
-    group = me.StringField(required=True, unique=True)
-    roles = me.ListField(field=me.StringField())
-    source = me.StringField()
-    description = me.StringField()
+    group = me.CharField(required=True)
+    roles = me.ListField(field=me.CharField())
+    source = me.CharField()
+    description = me.CharField()
     enabled = me.BooleanField(required=True, default=True,
-                              help_text='A flag indicating whether the mapping is enabled.')
+                              verbose_name='A flag indicating whether the mapping is enabled.')
 
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('group', pymongo.OFF)], unique=True)
+        ]
 
 # Specialized access objects
 role_access = MongoDBAccess(RoleDB)

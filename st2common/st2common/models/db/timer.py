@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common.models.db import stormbase
 from st2common.constants.types import ResourceType
@@ -31,10 +32,15 @@ class TimerDB(stormbase.StormFoundationDB, stormbase.UIDFieldMixin):
     RESOURCE_TYPE = ResourceType.TIMER
     UID_FIELDS = ['pack', 'name']
 
-    name = me.StringField(required=True)
-    pack = me.StringField(required=True, unique_with='name')
-    type = me.StringField()
+    name = me.CharField(required=True)
+    pack = me.CharField(required=True)
+    type = me.CharField()
     parameters = me.DictField()
+
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('pack', pymongo.OFF), ('name', pymongo.OFF)], unique=True)
+        ]
 
     def __init__(self, *args, **values):
         super(TimerDB, self).__init__(*args, **values)

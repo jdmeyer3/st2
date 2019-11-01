@@ -13,25 +13,25 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import mongoengine as me
+import pymodm as me
 
 from st2common.models.db import stormbase
 
 
-class NotificationSubSchema(me.EmbeddedDocument):
+class NotificationSubSchema(me.EmbeddedMongoModel):
     """
         Schema for notification settings to be specified for action success/failure.
     """
-    message = me.StringField()
+    message = me.CharField()
     data = stormbase.EscapedDynamicField(
         default={},
-        help_text='Payload to be sent as part of notification.')
+        verbose_name='Payload to be sent as part of notification.')
     routes = me.ListField(
         default=['notify.default'],
-        help_text='Routes to post notifications to.')
+        verbose_name='Routes to post notifications to.')
     channels = me.ListField(  # Deprecated. Only here for backward compatibility reasons.
         default=['notify.default'],
-        help_text='Routes to post notifications to.')
+        verbose_name='Routes to post notifications to.')
 
     def __str__(self):
         result = []
@@ -44,7 +44,7 @@ class NotificationSubSchema(me.EmbeddedDocument):
         return ''.join(result)
 
 
-class NotificationSchema(me.EmbeddedDocument):
+class NotificationSchema(me.EmbeddedMongoModel):
     """
         Schema for notification settings to be specified for actions.
     """

@@ -13,21 +13,39 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import datetime
-import calendar
 
-from mongoengine import LongField
+import calendar
+import datetime
+import re
+
+from pymodm import BigIntegerField, CharField
+from pymodm.errors import ValidationError
 
 from st2common.util import date as date_utils
 
 __all__ = [
-    'ComplexDateTimeField'
+    'ComplexDateTimeField',
+    'RegexStringField'
 ]
 
 SECOND_TO_MICROSECONDS = 1000000
 
 
-class ComplexDateTimeField(LongField):
+class RegexStringField(CharField):
+
+    def __init__(self, regex=None, verbose_name=None, mongo_name=None,
+                 min_length=None, max_length=None, **kwargs):
+        super(RegexStringField, self).__init__(verbose_name, mongo_name, min_length, max_length, **kwargs)
+        self.regex = re.compile(regex) if regex else None
+        self.validators.append(self.to_mongo)
+
+    def to_mongo(self, value):
+        if self.regex is not None and self.regex.match(value) is None:
+            ValidationError('String value did not match validation regex')
+        return value
+
+
+class ComplexDateTimeField(BigIntegerField):
     """
     Date time field which handles microseconds exactly and internally stores
     the timestamp as number of microseconds since the unix epoch.
@@ -98,8 +116,8 @@ class ComplexDateTimeField(LongField):
     def validate(self, value):
         value = self.to_python(value)
         if not isinstance(value, datetime.datetime):
-            self.error('Only datetime objects may used in a '
-                       'ComplexDateTimeField')
+            ValidationError('Only datetime objects may used in a '
+                            'ComplexDateTimeField')
 
     def to_python(self, value):
         original_value = value

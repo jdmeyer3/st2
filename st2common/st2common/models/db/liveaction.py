@@ -15,7 +15,8 @@
 from __future__ import absolute_import
 import copy
 
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common import log as logging
 from st2common.models.db import MongoDBAccess
@@ -36,56 +37,55 @@ PACK_SEPARATOR = '.'
 
 
 class LiveActionDB(stormbase.StormFoundationDB):
-    workflow_execution = me.StringField()
-    task_execution = me.StringField()
+    workflow_execution = me.CharField()
+    task_execution = me.CharField()
     # TODO: Can status be an enum at the Mongo layer?
-    status = me.StringField(
+    status = me.CharField(
         required=True,
-        help_text='The current status of the liveaction.')
+        verbose_name='The current status of the liveaction.')
     start_timestamp = ComplexDateTimeField(
         default=date_utils.get_datetime_utc_now,
-        help_text='The timestamp when the liveaction was created.')
+        verbose_name='The timestamp when the liveaction was created.')
     end_timestamp = ComplexDateTimeField(
-        help_text='The timestamp when the liveaction has finished.')
-    action = me.StringField(
+        verbose_name='The timestamp when the liveaction has finished.')
+    action = me.CharField(
         required=True,
-        help_text='Reference to the action that has to be executed.')
+        verbose_name='Reference to the action that has to be executed.')
     action_is_workflow = me.BooleanField(
         default=False,
-        help_text='A flag indicating whether the referenced action is a workflow.')
+        verbose_name='A flag indicating whether the referenced action is a workflow.')
     parameters = stormbase.EscapedDynamicField(
         default={},
-        help_text='The key-value pairs passed as to the action runner & execution.')
+        verbose_name='The key-value pairs passed as to the action runner & execution.')
     result = stormbase.EscapedDynamicField(
         default={},
-        help_text='Action defined result.')
+        verbose_name='Action defined result.')
     context = me.DictField(
         default={},
-        help_text='Contextual information on the action execution.')
+        verbose_name='Contextual information on the action execution.')
     callback = me.DictField(
         default={},
-        help_text='Callback information for the on completion of action execution.')
+        verbose_name='Callback information for the on completion of action execution.')
     runner_info = me.DictField(
         default={},
-        help_text='Information about the runner which executed this live action (hostname, pid).')
+        verbose_name='Information about the runner which executed this live action (hostname, pid).')
     notify = me.EmbeddedDocumentField(NotificationSchema)
-    delay = me.IntField(
+    delay = me.IntegerField(
         min_value=0,
-        help_text='How long (in milliseconds) to delay the execution before scheduling.'
+        verbose_name='How long (in milliseconds) to delay the execution before scheduling.'
     )
 
-    meta = {
-        'indexes': [
-            {'fields': ['-start_timestamp', 'action']},
-            {'fields': ['start_timestamp']},
-            {'fields': ['end_timestamp']},
-            {'fields': ['action']},
-            {'fields': ['status']},
-            {'fields': ['context.trigger_instance.id']},
-            {'fields': ['workflow_execution']},
-            {'fields': ['task_execution']}
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('-start_timestamp', pymongo.OFF), ('action', pymongo.OFF)]),
+            pymongo.IndexModel([('start_timestamp', pymongo.OFF)]),
+            pymongo.IndexModel([('end_timestamp', pymongo.OFF)]),
+            pymongo.IndexModel([('action', pymongo.OFF)]),
+            pymongo.IndexModel([('status', pymongo.OFF)]),
+            pymongo.IndexModel([('context.trigger_instance.id', pymongo.OFF)]),
+            pymongo.IndexModel([('workflow_execution', pymongo.OFF)]),
+            pymongo.IndexModel([('task_execution', pymongo.OFF)]),
         ]
-    }
 
     def mask_secrets(self, value):
         from st2common.util import action_db

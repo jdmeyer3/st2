@@ -14,14 +14,15 @@
 
 from __future__ import absolute_import
 
-import mongoengine as me
+import pymodm as me
+import pymongo
 
+from st2common.constants.rule_enforcement import RULE_ENFORCEMENT_STATUS_FAILED
+from st2common.constants.rule_enforcement import RULE_ENFORCEMENT_STATUS_SUCCEEDED
 from st2common.fields import ComplexDateTimeField
 from st2common.models.db import MongoDBAccess
 from st2common.models.db import stormbase
 from st2common.util import date as date_utils
-from st2common.constants.rule_enforcement import RULE_ENFORCEMENT_STATUS_SUCCEEDED
-from st2common.constants.rule_enforcement import RULE_ENFORCEMENT_STATUS_FAILED
 
 __all__ = [
     'RuleReferenceSpecDB',
@@ -29,14 +30,18 @@ __all__ = [
 ]
 
 
-class RuleReferenceSpecDB(me.EmbeddedDocument):
-    ref = me.StringField(unique=False,
-                         help_text='Reference to rule.',
-                         required=True)
-    id = me.StringField(required=False,
-                        help_text='Rule ID.')
-    uid = me.StringField(required=True,
-                         help_text='Rule UID.')
+class RuleReferenceSpecDB(me.EmbeddedMongoModel):
+    ref = me.CharField(verbose_name='Reference to rule.',
+                       required=True)
+    id = me.CharField(required=False,
+                      verbose_name='Rule ID.')
+    uid = me.CharField(required=True,
+                       verbose_name='Rule UID.')
+
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('ref', pymongo.OFF)], unique=False)
+        ]
 
     def __str__(self):
         result = []
@@ -52,30 +57,29 @@ class RuleReferenceSpecDB(me.EmbeddedDocument):
 class RuleEnforcementDB(stormbase.StormFoundationDB, stormbase.TagsMixin):
     UID_FIELDS = ['id']
 
-    trigger_instance_id = me.StringField(required=True)
-    execution_id = me.StringField(required=False)
-    failure_reason = me.StringField(required=False)
+    trigger_instance_id = me.CharField(required=True)
+    execution_id = me.CharField(required=False)
+    failure_reason = me.CharField(required=False)
     rule = me.EmbeddedDocumentField(RuleReferenceSpecDB, required=True)
     enforced_at = ComplexDateTimeField(
         default=date_utils.get_datetime_utc_now,
-        help_text='The timestamp when the rule enforcement happened.')
-    status = me.StringField(
+        verbose_name='The timestamp when the rule enforcement happened.')
+    status = me.CharField(
         required=True,
         default=RULE_ENFORCEMENT_STATUS_SUCCEEDED,
-        help_text='Rule enforcement status.')
+        verbose_name='Rule enforcement status.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['trigger_instance_id']},
-            {'fields': ['execution_id']},
-            {'fields': ['rule.id']},
-            {'fields': ['rule.ref']},
-            {'fields': ['enforced_at']},
-            {'fields': ['-enforced_at']},
-            {'fields': ['-enforced_at', 'rule.ref']},
-            {'fields': ['status']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('trigger_instance_id', pymongo.OFF)]),
+            pymongo.IndexModel([('execution_id', pymongo.OFF)]),
+            pymongo.IndexModel([('rule.id', pymongo.OFF)]),
+            pymongo.IndexModel([('rule.ref', pymongo.OFF)]),
+            pymongo.IndexModel([('enforced_at', pymongo.OFF)]),
+            pymongo.IndexModel([('-enforced_at', pymongo.OFF)]),
+            pymongo.IndexModel([('-enforced_at', pymongo.OFF), ('rule.ref', pymongo.OFF)]),
+            pymongo.IndexModel([('status', pymongo.OFF)])
         ] + stormbase.TagsMixin.get_indexes()
-    }
 
     def __init__(self, *args, **values):
         super(RuleEnforcementDB, self).__init__(*args, **values)

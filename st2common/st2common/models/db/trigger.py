@@ -13,14 +13,16 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import json
+
 import hashlib
+import json
 
-import mongoengine as me
+import pymodm as me
+import pymongo
 
+from st2common.constants.types import ResourceType
 from st2common.models.db import MongoDBAccess
 from st2common.models.db import stormbase
-from st2common.constants.types import ResourceType
 
 __all__ = [
     'TriggerTypeDB',
@@ -46,17 +48,18 @@ class TriggerTypeDB(stormbase.StormBaseDB,
     RESOURCE_TYPE = ResourceType.TRIGGER_TYPE
     UID_FIELDS = ['pack', 'name']
 
-    ref = me.StringField(required=False)
-    name = me.StringField(required=True)
-    pack = me.StringField(required=True, unique_with='name')
+    ref = me.CharField(required=False)
+    name = me.CharField(required=True)
+    pack = me.CharField(required=True)
     payload_schema = me.DictField()
     parameters_schema = me.DictField(default={})
 
-    meta = {
-        'indexes': (stormbase.ContentPackResourceMixin.get_indexes() +
-                    stormbase.TagsMixin.get_indexes() +
-                    stormbase.UIDFieldMixin.get_indexes())
-    }
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('pack', pymongo.OFF), ('name', pymongo.OFF)], unique=True)
+                  ] + (stormbase.ContentPackResourceMixin.get_indexes() +
+                        stormbase.TagsMixin.get_indexes() +
+                        stormbase.UIDFieldMixin.get_indexes())
 
     def __init__(self, *args, **values):
         super(TriggerTypeDB, self).__init__(*args, **values)
@@ -78,20 +81,20 @@ class TriggerDB(stormbase.StormBaseDB, stormbase.ContentPackResourceMixin,
     RESOURCE_TYPE = ResourceType.TRIGGER
     UID_FIELDS = ['pack', 'name']
 
-    ref = me.StringField(required=False)
-    name = me.StringField(required=True)
-    pack = me.StringField(required=True, unique_with='name')
-    type = me.StringField()
+    ref = me.CharField(required=False)
+    name = me.CharField(required=True)
+    pack = me.CharField(required=True)
+    type = me.CharField()
     parameters = me.DictField()
-    ref_count = me.IntField(default=0)
+    ref_count = me.IntegerField(default=0)
 
-    meta = {
-        'indexes': [
-            {'fields': ['name']},
-            {'fields': ['type']},
-            {'fields': ['parameters']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('pack', pymongo.OFF), ('name', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('name', pymongo.OFF)]),
+            pymongo.IndexModel([('type', pymongo.OFF)]),
+            pymongo.IndexModel([('parameters', pymongo.OFF)]),
         ] + stormbase.UIDFieldMixin.get_indexes()
-    }
 
     def __init__(self, *args, **values):
         super(TriggerDB, self).__init__(*args, **values)
@@ -125,21 +128,20 @@ class TriggerInstanceDB(stormbase.StormFoundationDB):
         payload (dict): payload specific to the occurrence.
         occurrence_time (datetime): time of occurrence of the trigger.
     """
-    trigger = me.StringField()
+    trigger = me.CharField()
     payload = stormbase.EscapedDictField()
     occurrence_time = me.DateTimeField()
-    status = me.StringField(
+    status = me.CharField(
         required=True,
-        help_text='Processing status of TriggerInstance.')
+        verbose_name='Processing status of TriggerInstance.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['occurrence_time']},
-            {'fields': ['trigger']},
-            {'fields': ['-occurrence_time', 'trigger']},
-            {'fields': ['status']}
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('occurrence_time', pymongo.OFF)]),
+            pymongo.IndexModel([('trigger', pymongo.OFF)]),
+            pymongo.IndexModel([('-occurrence_time', pymongo.OFF), ('trigger', pymongo.OFF)]),
+            pymongo.IndexModel([('status', pymongo.OFF)]),
         ]
-    }
 
 
 # specialized access objects

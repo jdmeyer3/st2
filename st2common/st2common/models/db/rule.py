@@ -14,7 +14,6 @@
 
 from __future__ import absolute_import
 import copy
-import mongoengine as me
 
 from st2common.persistence.action import Action
 from st2common.models.db import MongoDBAccess
@@ -23,21 +22,32 @@ from st2common.constants.types import ResourceType
 from st2common.util.secrets import get_secret_parameters
 from st2common.util.secrets import mask_secret_parameters
 
+import pymodm as me
+import pymongo
+
+from st2common.constants.types import ResourceType
+from st2common.models.db import MongoDBAccess
+from st2common.models.db import stormbase
+
 
 class RuleTypeDB(stormbase.StormBaseDB):
     enabled = me.BooleanField(
         default=True,
-        help_text='A flag indicating whether the runner for this type is enabled.')
+        verbose_name='A flag indicating whether the runner for this type is enabled.')
     parameters = me.DictField(
-        help_text='The specification for parameters for the action.',
+        verbose_name='The specification for parameters for the action.',
         default={})
 
 
-class RuleTypeSpecDB(me.EmbeddedDocument):
-    ref = me.StringField(unique=False,
-                         help_text='Type of rule.',
-                         default='standard')
+class RuleTypeSpecDB(me.EmbeddedMongoModel):
+    ref = me.CharField(verbose_name='Type of rule.',
+                       default='standard')
     parameters = me.DictField(default={})
+
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('ref', pymongo.OFF)], unique=True)
+        ]
 
     def __str__(self):
         result = []
@@ -48,9 +58,14 @@ class RuleTypeSpecDB(me.EmbeddedDocument):
         return ''.join(result)
 
 
-class ActionExecutionSpecDB(me.EmbeddedDocument):
-    ref = me.StringField(required=True, unique=False)
+class ActionExecutionSpecDB(me.EmbeddedMongoModel):
+    ref = me.CharField(required=True)
     parameters = me.DictField()
+
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('ref', pymongo.OFF)], unique=True)
+        ]
 
     def __str__(self):
         result = []
@@ -76,34 +91,33 @@ class RuleDB(stormbase.StormFoundationDB, stormbase.TagsMixin,
     RESOURCE_TYPE = ResourceType.RULE
     UID_FIELDS = ['pack', 'name']
 
-    name = me.StringField(required=True)
-    ref = me.StringField(required=True)
-    description = me.StringField()
-    pack = me.StringField(
+    name = me.CharField(required=True)
+    ref = me.CharField(required=True)
+    description = me.CharField()
+    pack = me.CharField(
         required=False,
-        help_text='Name of the content pack.',
-        unique_with='name')
+        verbose_name='Name of the content pack.')
     type = me.EmbeddedDocumentField(RuleTypeSpecDB, default=RuleTypeSpecDB())
-    trigger = me.StringField()
+    trigger = me.CharField()
     criteria = stormbase.EscapedDictField()
     action = me.EmbeddedDocumentField(ActionExecutionSpecDB)
     context = me.DictField(
         default={},
-        help_text='Contextual info on the rule'
+        verbose_name='Contextual info on the rule'
     )
     enabled = me.BooleanField(required=True, default=True,
-                              help_text=u'Flag indicating whether the rule is enabled.')
+                              verbose_name=u'Flag indicating whether the rule is enabled.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['enabled']},
-            {'fields': ['action.ref']},
-            {'fields': ['trigger']},
-            {'fields': ['context.user']},
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('enabled', pymongo.OFF)]),
+            pymongo.IndexModel([('action.ref', pymongo.OFF)]),
+            pymongo.IndexModel([('trigger', pymongo.OFF)]),
+            pymongo.IndexModel([('context.user', pymongo.OFF)]),
+            pymongo.IndexModel([('pack', pymongo.OFF), ('name', pymongo.OFF)], unique=True)
         ] + (stormbase.ContentPackResourceMixin.get_indexes() +
              stormbase.TagsMixin.get_indexes() +
              stormbase.UIDFieldMixin.get_indexes())
-    }
 
     def mask_secrets(self, value):
         """

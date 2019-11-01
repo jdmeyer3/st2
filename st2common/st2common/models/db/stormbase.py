@@ -13,18 +13,24 @@
 # limitations under the License.
 
 from __future__ import absolute_import
+
 import abc
 import datetime
 
 import bson
+import pymodm as me
+import pymongo
+from pymodm.manager import Manager
+from pymodm.queryset import QuerySet
 import six
-import mongoengine as me
 from oslo_config import cfg
+from pymodm.common import validate_mongo_keys
+from pymodm.errors import ValidationError
 
-from st2common.util import mongoescape
+from st2common.constants.types import ResourceType
 from st2common.models.base import DictSerializableClassMixin
 from st2common.models.system.common import ResourceReference
-from st2common.constants.types import ResourceType
+from st2common.util import mongoescape
 
 __all__ = [
     'StormFoundationDB',
@@ -40,10 +46,10 @@ __all__ = [
     'ContentPackResourceMixin'
 ]
 
-JSON_UNFRIENDLY_TYPES = (datetime.datetime, bson.ObjectId, me.EmbeddedDocument)
+JSON_UNFRIENDLY_TYPES = (datetime.datetime, bson.ObjectId, me.EmbeddedMongoModel)
 
 
-class StormFoundationDB(me.Document, DictSerializableClassMixin):
+class StormFoundationDB(me.MongoModel, DictSerializableClassMixin):
     """
     Base abstraction for a model entity. This foundation class should only be directly
     inherited from the application domain models.
@@ -53,16 +59,17 @@ class StormFoundationDB(me.Document, DictSerializableClassMixin):
     RESOURCE_TYPE = ResourceType.UNKNOWN
 
     # We explicitly assign the manager so pylint know what type objects is
-    objects = me.queryset.QuerySetManager()
+    objects = QuerySet()
 
-    # Note: In mongoengine >= 0.10 "id" field is automatically declared on all
-    # the documents and declaring it ourselves causes a lot of issues so we
-    # don't do that
 
-    # see http://docs.mongoengine.org/guide/defining-documents.html#abstract-classes
-    meta = {
-        'abstract': True
-    }
+    # # Note: In mongoengine >= 0.10 "id" field is automatically declared on all
+    # # the documents and declaring it ourselves causes a lot of issues so we
+    # # don't do that
+    #
+    # # see http://docs.mongoengine.org/guide/defining-documents.html#abstract-classes
+    # meta = {
+    #     'abstract': True
+    # }
 
     def __str__(self):
         attrs = list()
@@ -110,13 +117,13 @@ class StormFoundationDB(me.Document, DictSerializableClassMixin):
 class StormBaseDB(StormFoundationDB):
     """Abstraction for a user content model."""
 
-    name = me.StringField(required=True, unique=True)
-    description = me.StringField()
+    name = me.CharField(required=True)
+    description = me.CharField()
 
-    # see http://docs.mongoengine.org/guide/defining-documents.html#abstract-classes
-    meta = {
-        'abstract': True
-    }
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('name', pymongo.TEXT)], unique=True)
+        ]
 
 
 class EscapedDictField(me.DictField):
@@ -132,13 +139,14 @@ class EscapedDictField(me.DictField):
 
     def validate(self, value):
         if not isinstance(value, dict):
-            self.error('Only dictionaries may be used in a DictField')
-        if me.fields.key_not_string(value):
-            self.error("Invalid dictionary key - documents must have only string keys")
-        me.base.ComplexBaseField.validate(self, value)
+            ValidationError('Only dictionaries may be used in a DictField')
+        if validate_mongo_keys('Dictionary keys', value):
+            ValidationError("Invalid dictionary key - documents must have only string keys")
+        me.DictField.validate(value)
 
 
-class EscapedDynamicField(me.DynamicField):
+# TODO: figure out what to subclass and allow default
+class EscapedDynamicField(me.DictField):
 
     def to_mongo(self, value, use_db_field=True, fields=None):
         value = mongoescape.escape_chars(value)
@@ -150,13 +158,13 @@ class EscapedDynamicField(me.DynamicField):
         return mongoescape.unescape_chars(value)
 
 
-class TagField(me.EmbeddedDocument):
+class TagField(me.EmbeddedMongoModel):
     """
     To be attached to a db model object for the purpose of providing supplemental
     information.
     """
-    name = me.StringField(max_length=1024)
-    value = me.StringField(max_length=1024)
+    name = me.CharField(max_length=1024)
+    value = me.CharField(max_length=1024)
 
 
 class TagsMixin(object):
@@ -175,7 +183,7 @@ class RefFieldMixin(object):
     Mixin class which adds "ref" field to the class inheriting from it.
     """
 
-    ref = me.StringField(required=True, unique=True)
+    ref = me.CharField(required=True)
 
 
 class UIDFieldMixin(object):
@@ -191,7 +199,7 @@ class UIDFieldMixin(object):
     RESOURCE_TYPE = abc.abstractproperty
     UID_FIELDS = abc.abstractproperty
 
-    uid = me.StringField(required=True)
+    uid = me.CharField(required=True)
 
     @classmethod
     def get_indexes(cls):
@@ -199,14 +207,9 @@ class UIDFieldMixin(object):
         # models in the database before ensure_indexes() is called.
         # This field gets populated in the constructor which means it will be lazily assigned next
         # time the model is saved (e.g. once register-content is ran).
-        indexes = [
-            {
-                'fields': ['uid'],
-                'unique': True,
-                'sparse': True
-            }
+        return [
+            pymongo.IndexModel([('uid', pymongo.ASCENDING)], unique=True, sparse=True)
         ]
-        return indexes
 
     def get_uid(self):
         """
@@ -249,10 +252,10 @@ class ContentPackResourceMixin(object):
     Mixin class provides utility methods for models which belong to a pack.
     """
 
-    metadata_file = me.StringField(
+    metadata_file = me.CharField(
         required=False,
-        help_text=('Path to the metadata file (file on disk which contains resource definition) '
-                   'relative to the pack directory.'))
+        verbose_name=('Path to the metadata file (file on disk which contains resource definition) '
+                      'relative to the pack directory.'))
 
     def get_pack_uid(self):
         """
@@ -280,21 +283,15 @@ class ContentPackResourceMixin(object):
     @classmethod
     def get_indexes(cls):
         return [
-            {
-                'fields': ['metadata_file'],
-            }
+            pymongo.IndexModel([('metadata_file', pymongo.TEXT)])
         ]
 
 
 class ChangeRevisionFieldMixin(object):
-
-    rev = me.IntField(required=True, default=1)
+    rev = me.IntegerField(required=True, default=1)
 
     @classmethod
     def get_indexes(cls):
         return [
-            {
-                'fields': ['id', 'rev'],
-                'unique': True
-            }
+            pymongo.IndexModel([('id', pymongo.OFF), ('rev', pymongo.TEXT)], unique=True)
         ]

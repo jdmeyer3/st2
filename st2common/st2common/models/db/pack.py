@@ -14,8 +14,10 @@
 
 from __future__ import absolute_import
 import copy
-import mongoengine as me
+import pymodm as me
+import pymongo
 
+from st2common import fields as db_field_types
 from st2common.models.db import MongoDBAccess
 from st2common.models.db import stormbase
 from st2common.constants.types import ResourceType
@@ -32,7 +34,7 @@ __all__ = [
 
 
 class PackDB(stormbase.StormFoundationDB, stormbase.UIDFieldMixin,
-             me.DynamicDocument):
+             me.MongoModel):
     """
     System entity which represents a pack.
     """
@@ -40,24 +42,26 @@ class PackDB(stormbase.StormFoundationDB, stormbase.UIDFieldMixin,
     RESOURCE_TYPE = ResourceType.PACK
     UID_FIELDS = ['ref']
 
-    ref = me.StringField(required=True, unique=True)
-    name = me.StringField(required=True, unique=True)
-    description = me.StringField(required=True)
-    keywords = me.ListField(field=me.StringField())
-    version = me.StringField(regex=PACK_VERSION_REGEX, required=True)
-    stackstorm_version = me.StringField(regex=ST2_VERSION_REGEX)
-    python_versions = me.ListField(field=me.StringField())
-    author = me.StringField(required=True)
+    ref = me.CharField(required=True)
+    name = me.CharField(required=True)
+    description = me.CharField(required=True)
+    keywords = me.ListField(field=me.CharField())
+    version = db_field_types.RegexStringField(regex=PACK_VERSION_REGEX, required=True)
+    stackstorm_version = db_field_types.RegexStringField(regex=ST2_VERSION_REGEX)
+    python_versions = me.ListField(field=me.CharField())
+    author = me.CharField(required=True)
     email = me.EmailField()
-    contributors = me.ListField(field=me.StringField())
-    files = me.ListField(field=me.StringField())
-    path = me.StringField(required=False)
-    dependencies = me.ListField(field=me.StringField())
+    contributors = me.ListField(field=me.CharField())
+    files = me.ListField(field=me.CharField())
+    path = me.CharField(required=False)
+    dependencies = me.ListField(field=me.CharField())
     system = me.DictField()
 
-    meta = {
-        'indexes': stormbase.UIDFieldMixin.get_indexes()
-    }
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('ref', pymongo.OFF)], unique=True),
+            pymongo.IndexModel([('name', pymongo.OFF)], unique=True),
+        ] + stormbase.UIDFieldMixin.get_indexes()
 
     def __init__(self, *args, **values):
         super(PackDB, self).__init__(*args, **values)
@@ -69,25 +73,33 @@ class ConfigSchemaDB(stormbase.StormFoundationDB):
     System entity representing a config schema for a particular pack.
     """
 
-    pack = me.StringField(
+    pack = me.CharField(
         required=True,
-        unique=True,
-        help_text='Name of the content pack this schema belongs to.')
+        verbose_name='Name of the content pack this schema belongs to.')
     attributes = stormbase.EscapedDynamicField(
-        help_text='The specification for config schema attributes.')
+        verbose_name='The specification for config schema attributes.')
 
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('pack', pymongo.OFF)], unique=True)
+        ]
+        
 
 class ConfigDB(stormbase.StormFoundationDB):
     """
     System entity representing pack config.
     """
-    pack = me.StringField(
+    pack = me.CharField(
         required=True,
-        unique=True,
-        help_text='Name of the content pack this config belongs to.')
+        verbose_name='Name of the content pack this config belongs to.')
     values = stormbase.EscapedDynamicField(
-        help_text='Config values.',
+        verbose_name='Config values.',
         default={})
+    
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('pack', pymongo.OFF)], unique=True)
+        ]
 
     def mask_secrets(self, value):
         """

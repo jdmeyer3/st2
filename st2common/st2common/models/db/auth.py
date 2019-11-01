@@ -15,7 +15,9 @@
 from __future__ import absolute_import
 
 import copy
-import mongoengine as me
+
+import pymodm as me
+import pymongo
 
 from st2common.constants.secrets import MASKED_ATTRIBUTE_VALUE
 from st2common.constants.types import ResourceType
@@ -41,10 +43,15 @@ class UserDB(stormbase.StormFoundationDB):
         is_service: True if this is a service account.
         nicknames: Nickname + origin pairs for ChatOps auth.
     """
-    name = me.StringField(required=True, unique=True)
+    name = me.CharField(required=True)
     is_service = me.BooleanField(required=True, default=False)
     nicknames = me.DictField(required=False,
-                             help_text='"Nickname + origin" pairs for ChatOps auth')
+                             verbose_name='"Nickname + origin" pairs for ChatOps auth')
+
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('name', pymongo.TEXT)], unique=True)
+        ]
 
     def get_roles(self, include_remote=True):
         """
@@ -74,12 +81,17 @@ class TokenDB(stormbase.StormFoundationDB):
         expiry: Date when this token expires.
         service: True if this is a service (system) token.
     """
-    user = me.StringField(required=True)
-    token = me.StringField(required=True, unique=True)
+    user = me.CharField(required=True)
+    token = me.CharField(required=True)
     expiry = me.DateTimeField(required=True)
     metadata = me.DictField(required=False,
-                            help_text='Arbitrary metadata associated with this token')
+                            verbose_name='Arbitrary metadata associated with this token')
     service = me.BooleanField(required=True, default=False)
+
+    class Meta:
+        indexes = [
+            pymongo.IndexModel([('token', pymongo.TEXT)], unique=True)
+        ]
 
 
 class ApiKeyDB(stormbase.StormFoundationDB, stormbase.UIDFieldMixin):
@@ -92,21 +104,21 @@ class ApiKeyDB(stormbase.StormFoundationDB, stormbase.UIDFieldMixin):
     RESOURCE_TYPE = ResourceType.API_KEY
     UID_FIELDS = ['key_hash']
 
-    user = me.StringField(required=True)
-    key_hash = me.StringField(required=True, unique=True)
+    user = me.CharField(required=True)
+    key_hash = me.CharField(required=True)
     metadata = me.DictField(required=False,
-                            help_text='Arbitrary metadata associated with this token')
+                            verbose_name='Arbitrary metadata associated with this token')
     created_at = ComplexDateTimeField(default=date_utils.get_datetime_utc_now,
-                                      help_text='The creation time of this ApiKey.')
+                                      verbose_name='The creation time of this ApiKey.')
     enabled = me.BooleanField(required=True, default=True,
-                              help_text='A flag indicating whether the ApiKey is enabled.')
+                              verbose_name='A flag indicating whether the ApiKey is enabled.')
 
-    meta = {
-        'indexes': [
-            {'fields': ['user']},
-            {'fields': ['key_hash']}
-        ]
-    }
+    class Meta:
+        collection_name = "api_key_d_b"
+        indexes = [
+                      pymongo.IndexModel([('user', pymongo.TEXT)]),
+                      pymongo.IndexModel([('key_hash', pymongo.TEXT)], unique=True),
+            ]
 
     def __init__(self, *args, **values):
         super(ApiKeyDB, self).__init__(*args, **values)

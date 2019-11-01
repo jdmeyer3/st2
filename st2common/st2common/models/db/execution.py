@@ -13,24 +13,25 @@
 # limitations under the License.
 
 from __future__ import absolute_import
+
 import copy
 
-import mongoengine as me
+import pymodm as me
+import pymongo
 
 from st2common import log as logging
-from st2common.models.db import stormbase
+from st2common.constants.types import ResourceType
 from st2common.fields import ComplexDateTimeField
+from st2common.models.db import stormbase
 from st2common.util import date as date_utils
 from st2common.util.secrets import get_secret_parameters
 from st2common.util.secrets import mask_inquiry_response
 from st2common.util.secrets import mask_secret_parameters
-from st2common.constants.types import ResourceType
 
 __all__ = [
     'ActionExecutionDB',
     'ActionExecutionOutputDB'
 ]
-
 
 LOG = logging.getLogger(__name__)
 
@@ -48,52 +49,53 @@ class ActionExecutionDB(stormbase.StormFoundationDB):
     # Only the diff between the liveaction type and what is replicated
     # in the ActionExecutionDB object.
     liveaction = stormbase.EscapedDictField(required=True)
-    workflow_execution = me.StringField()
-    task_execution = me.StringField()
-    status = me.StringField(
+    workflow_execution = me.CharField()
+    task_execution = me.CharField()
+    status = me.CharField(
         required=True,
-        help_text='The current status of the liveaction.')
+        verbose_name='The current status of the liveaction.')
     start_timestamp = ComplexDateTimeField(
         default=date_utils.get_datetime_utc_now,
-        help_text='The timestamp when the liveaction was created.')
+        verbose_name='The timestamp when the liveaction was created.')
     end_timestamp = ComplexDateTimeField(
-        help_text='The timestamp when the liveaction has finished.')
+        verbose_name='The timestamp when the liveaction has finished.')
     parameters = stormbase.EscapedDynamicField(
         default={},
-        help_text='The key-value pairs passed as to the action runner & action.')
+        verbose_name='The key-value pairs passed as to the action runner & action.')
     result = stormbase.EscapedDynamicField(
         default={},
-        help_text='Action defined result.')
+        verbose_name='Action defined result.')
     context = me.DictField(
         default={},
-        help_text='Contextual information on the action execution.')
-    parent = me.StringField()
-    children = me.ListField(field=me.StringField())
+        verbose_name='Contextual information on the action execution.')
+    parent = me.CharField()
+    children = me.ListField(field=me.CharField())
     log = me.ListField(field=me.DictField())
-    delay = me.IntField(min_value=0)
+    delay = me.IntegerField(min_value=0)
     # Do not use URLField for web_url. If host doesn't have FQDN set, URLField validation blows.
-    web_url = me.StringField(required=False)
+    web_url = me.CharField(required=False)
 
-    meta = {
-        'indexes': [
-            {'fields': ['rule.ref']},
-            {'fields': ['action.ref']},
-            {'fields': ['liveaction.id']},
-            {'fields': ['start_timestamp']},
-            {'fields': ['end_timestamp']},
-            {'fields': ['status']},
-            {'fields': ['parent']},
-            {'fields': ['rule.name']},
-            {'fields': ['runner.name']},
-            {'fields': ['trigger.name']},
-            {'fields': ['trigger_type.name']},
-            {'fields': ['trigger_instance.id']},
-            {'fields': ['context.user']},
-            {'fields': ['-start_timestamp', 'action.ref', 'status']},
-            {'fields': ['workflow_execution']},
-            {'fields': ['task_execution']}
+    class Meta:
+        collection_name = "action_execution_output_d_b"
+        indexes = [
+            pymongo.IndexModel([('rules.ref', pymongo.OFF)]),
+            pymongo.IndexModel([('action.ref', pymongo.OFF)]),
+            pymongo.IndexModel([('liveaction.id', pymongo.OFF)]),
+            pymongo.IndexModel([('start_timestamp', pymongo.OFF)]),
+            pymongo.IndexModel([('end_timestamp', pymongo.OFF)]),
+            pymongo.IndexModel([('status', pymongo.OFF)]),
+            pymongo.IndexModel([('parent', pymongo.OFF)]),
+            pymongo.IndexModel([('rule.name', pymongo.OFF)]),
+            pymongo.IndexModel([('runner.name', pymongo.OFF)]),
+            pymongo.IndexModel([('trigger.name', pymongo.OFF)]),
+            pymongo.IndexModel([('trigger_type.name', pymongo.OFF)]),
+            pymongo.IndexModel([('trigger_instance.id', pymongo.OFF)]),
+            pymongo.IndexModel([('context.user', pymongo.OFF)]),
+            pymongo.IndexModel(
+                [('-start_timestamp', pymongo.OFF), ('action.ref', pymongo.OFF), ('status', pymongo.OFF)]),
+            pymongo.IndexModel([('workflow_execution', pymongo.OFF)]),
+            pymongo.IndexModel([('task_execution', pymongo.OFF)]),
         ]
-    }
 
     def get_uid(self):
         # TODO Construct od from non id field:
@@ -173,24 +175,24 @@ class ActionExecutionOutputDB(stormbase.StormFoundationDB):
         data: Actual output data. This could either be line, chunk or similar, depending on the
               runner.
     """
-    execution_id = me.StringField(required=True)
-    action_ref = me.StringField(required=True)
-    runner_ref = me.StringField(required=True)
+    execution_id = me.CharField(required=True)
+    action_ref = me.CharField(required=True)
+    runner_ref = me.CharField(required=True)
     timestamp = ComplexDateTimeField(required=True, default=date_utils.get_datetime_utc_now)
-    output_type = me.StringField(required=True, default='output')
-    delay = me.IntField()
+    output_type = me.CharField(required=True, default='output')
+    delay = me.IntegerField()
 
-    data = me.StringField()
+    data = me.CharField()
 
-    meta = {
-        'indexes': [
-            {'fields': ['execution_id']},
-            {'fields': ['action_ref']},
-            {'fields': ['runner_ref']},
-            {'fields': ['timestamp']},
-            {'fields': ['output_type']}
+    class Meta:
+        collection_name = "action_execution_output_d_b"
+        indexes = [
+            pymongo.IndexModel([('execution_id', pymongo.OFF)]),
+            pymongo.IndexModel([('action_ref', pymongo.OFF)]),
+            pymongo.IndexModel([('runner_ref', pymongo.OFF)]),
+            pymongo.IndexModel([('timestamp', pymongo.OFF)]),
+            pymongo.IndexModel([('output_type', pymongo.OFF)])
         ]
-    }
 
 
 MODELS = [ActionExecutionDB, ActionExecutionOutputDB]
